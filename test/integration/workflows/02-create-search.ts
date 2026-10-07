@@ -929,5 +929,48 @@ export async function createSearchWorkflow(
     }
   }
 
+  {
+    const start = Date.now();
+    try {
+      const folder = await ctx.client.callTool('remnote_create_note', {
+        title: `Local folder ${ctx.runId}`,
+        asFolder: true,
+        parentId: state.integrationParentRemId,
+      });
+      const folderId = (folder.remIds as string[])[0];
+      const document = await ctx.client.callTool('remnote_create_note', {
+        title: `Folder document ${ctx.runId}`,
+        parentId: folderId,
+        content: '- Parent bullet\n  - Nested bullet',
+      });
+      assertEqual(
+        (await ctx.client.callTool('remnote_read_note', { remId: folderId })).remType,
+        'folder',
+        'native folder classification'
+      );
+      const read = await ctx.client.callTool('remnote_read_note', {
+        remId: (document.remIds as string[])[0],
+        contentMode: 'structured',
+      });
+      assertEqual(read.remType, 'document', 'notes inside folders are documents');
+      assertEqual(read.parentRemId, folderId, 'document parent is the native folder');
+      assertTruthy(
+        JSON.stringify(read.contentStructured).includes('Nested bullet'),
+        'nested bullet survives creation'
+      );
+      steps.push({
+        label: 'Create native folder and nested document bullets',
+        passed: true,
+        durationMs: Date.now() - start,
+      });
+    } catch (error) {
+      steps.push({
+        label: 'Create native folder and nested document bullets',
+        passed: false,
+        durationMs: Date.now() - start,
+        error: (error as Error).message,
+      });
+    }
+  }
   return { name: 'Create & Search', steps, skipped: false };
 }

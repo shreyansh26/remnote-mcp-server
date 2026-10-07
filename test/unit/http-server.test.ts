@@ -4,6 +4,7 @@ import { HttpMcpServer } from '../../src/http-server.js';
 import { WebSocketServer } from '../../src/websocket-server.js';
 import { createMockLogger } from '../setup.js';
 import { getAvailablePort, waitForHttpServer } from '../helpers/test-server.js';
+import { SemanticSearch } from '../../src/semantic-search.js';
 
 // Mock WebSocketServer
 vi.mock('../../src/websocket-server.js', () => ({
@@ -24,6 +25,7 @@ describe('HttpMcpServer', () => {
   let port: number;
 
   beforeEach(async () => {
+    vi.spyOn(SemanticSearch.prototype, 'startAutoRefresh').mockImplementation(() => {});
     port = await getAvailablePort();
     mockWsServer = new WebSocketServer(3002, '127.0.0.1', createMockLogger());
     mockLogger = createMockLogger();
@@ -47,6 +49,10 @@ describe('HttpMcpServer', () => {
   describe('Server Lifecycle', () => {
     it('should start and bind to specified port', async () => {
       await httpServer.start();
+      expect(SemanticSearch.prototype.startAutoRefresh).toHaveBeenCalledOnce();
+      const connect = vi.mocked(mockWsServer.onClientConnect).mock.calls[0][0];
+      connect();
+      expect(SemanticSearch.prototype.startAutoRefresh).toHaveBeenCalledTimes(2);
       await waitForHttpServer(port);
 
       // Verify server is listening by making a request

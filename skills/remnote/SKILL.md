@@ -120,6 +120,8 @@ If any precondition is missing, stop and fix setup first.
 
 ### Read-Only Operations (default)
 
+- Local index: the server refreshes on startup/bridge connection and 15 minutes after each refresh by default, including direct RemNote edits. Check `remnote-cli reindex` until ready; use `reindex --start` for an immediate refresh. `REMNOTE_SEMANTIC_REFRESH_MINUTES` changes the interval; `0` disables automatic refresh. Refresh writes only the local index.
+- Meaning search: `remnote-cli semantic-search "query" --mode semantic`; optional `--parent-id` scopes to a subtree. Results remain snapshots; read returned IDs for current content.
 - Search notes: `remnote-cli search "query"` (use `--parent-id <parent-rem-id>` to scope search within a Rem's subtree)
 - Search by exact tag Rem ID: `remnote-cli search-by-tag --tag-id <tag-rem-id>`
 - Read note by Rem ID: `remnote-cli read <rem-id>`
@@ -152,6 +154,8 @@ If any precondition is missing, stop and fix setup first.
 
 ### Mutating Operations (only after `confirm write`)
 
+- Native folder: `remnote-cli create "Folder" --as-folder`. Requires the local bridge and rejects content/--as-document.
+- Document inside a folder: pass its returned ID as `--parent-id`; the titled root becomes a document automatically. Put nested bullets in the document's content file.
 - Create (preferred): `remnote-cli create "Title" --content-file /tmp/body.md --text`
 - Create under a parent or apply tags:
   - `remnote-cli create "Title" --parent-id <rem-id> --tag-ids <tag-rem-id> --text`

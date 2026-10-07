@@ -114,6 +114,68 @@ function registerCommonSearchOptions(command: Command): Command {
     .option('--max-content-length <n>', 'Maximum content character length (default: 3000)');
 }
 
+export function registerSemanticCommands(program: Command): void {
+  program
+    .command('semantic-search <query>')
+    .description('Search by meaning using the local Ollama index')
+    .option('-l, --limit <n>', 'Maximum results', '10')
+    .option('--mode <mode>', 'semantic or hybrid', 'hybrid')
+    .option('--parent-id <remId>', 'Scope to descendants of this Rem')
+    .option('--min-score <n>', 'Minimum cosine similarity (-1 to 1)', '0')
+    .action(async (query: string, opts) => {
+      const format: OutputFormat = program.opts().text ? 'text' : 'json';
+      const client = createCommandClient(program);
+      try {
+        const result = await client.execute('semantic_search', {
+          query,
+          limit: Number(opts.limit),
+          mode: opts.mode,
+          minScore: Number(opts.minScore),
+          ...(opts.parentId ? { parentRemId: opts.parentId } : {}),
+        });
+        console.log(
+          formatResult(result, format, (data) => {
+            const r = data as { results: unknown[]; warning: string };
+            return `${formatSearchText(r)}\n${r.warning}`;
+          })
+        );
+      } catch (error) {
+        console.error(formatError(error instanceof Error ? error.message : String(error), format));
+        process.exit(EXIT.ERROR);
+      } finally {
+        await client.close();
+      }
+    });
+
+  program
+    .command('reindex')
+    .description('Start a background index refresh or inspect its status')
+    .option('--start', 'Start refreshing; without this flag, report status')
+    .action(async (opts) => {
+      const format: OutputFormat = program.opts().text ? 'text' : 'json';
+      const client = createCommandClient(program);
+      try {
+        const result = await client.execute('reindex', { action: opts.start ? 'start' : 'status' });
+        console.log(
+          formatResult(result, format, (data) => {
+            const r = data as {
+              status: string;
+              indexedNotes: number;
+              processedNotes: number;
+              error?: string;
+            };
+            return `Index ${r.status}: ${r.indexedNotes} indexed, ${r.processedNotes} processed${r.error ? `\n${r.error}` : ''}`;
+          })
+        );
+      } catch (error) {
+        console.error(formatError(error instanceof Error ? error.message : String(error), format));
+        process.exit(EXIT.ERROR);
+      } finally {
+        await client.close();
+      }
+    });
+}
+
 export function registerSearchCommand(program: Command): void {
   registerCommonSearchOptions(
     program.command('search <query>').description('Search for notes in RemNote')

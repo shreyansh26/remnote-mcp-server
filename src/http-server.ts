@@ -7,6 +7,7 @@ import { WebSocketServer } from './websocket-server.js';
 import { registerAllTools } from './tools/index.js';
 import { LocalhostOAuthProvider } from './oauth-provider.js';
 import type { Logger } from './logger.js';
+import { SemanticSearch } from './semantic-search.js';
 
 interface ServerInfo {
   name: string;
@@ -23,6 +24,7 @@ export class HttpMcpServer {
   private logger: Logger;
   private serverInstanceId: string;
   private transports = new Map<string, StreamableHTTPServerTransport>();
+  private readonly semanticSearch: SemanticSearch;
 
   constructor(
     port: number,
@@ -38,6 +40,9 @@ export class HttpMcpServer {
     this.serverInfo = serverInfo;
     this.logger = logger.child({ context: 'http-server' });
     this.serverInstanceId = randomUUID();
+    this.semanticSearch = new SemanticSearch((action, payload, timeoutMs) =>
+      wsServer.sendRequest(action, payload, timeoutMs)
+    );
 
     // Create Express app with JSON + form parsing
     this.app = express();
@@ -185,7 +190,7 @@ export class HttpMcpServer {
     });
 
     // Register all tools with the shared WebSocket server
-    registerAllTools(server, this.wsServer, this.logger, this.mediaRoots);
+    registerAllTools(server, this.wsServer, this.logger, this.mediaRoots, this.semanticSearch);
 
     // Connect server to transport
     await server.connect(transport);
@@ -240,6 +245,10 @@ export class HttpMcpServer {
             { port: this.port, host: this.host, serverInstanceId: this.serverInstanceId },
             'HTTP server started'
           );
+          const refresh = () =>
+            this.semanticSearch.startAutoRefresh(() => this.wsServer.isConnected(), this.logger);
+          this.wsServer.onClientConnect(refresh);
+          refresh();
           resolve();
         });
 
@@ -254,6 +263,7 @@ export class HttpMcpServer {
   }
 
   async stop(): Promise<void> {
+    this.semanticSearch.close();
     // Close all active transports
     for (const [sessionId, transport] of this.transports.entries()) {
       try {

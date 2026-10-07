@@ -89,6 +89,14 @@ function expectStructuredToolResult(result: ToolSuccessResult, expected: Record<
 
 describe('Tool Definitions', () => {
   it('should advertise OpenAI-compatible top-level input schemas', () => {
+    const validator = new AjvJsonSchemaValidator();
+    expect(
+      validator.getValidator(SET_DOCUMENT_STATUS_TOOL.inputSchema)({
+        remId: 'folder-id',
+        isDocument: false,
+        expectedOldRemType: 'folder',
+      }).valid
+    ).toBe(true);
     // OpenAI/Codex rejects MCP tool input schemas with top-level JSON Schema
     // composition keywords. Keep runtime-only constraints in Zod schemas instead.
     const disallowedTopLevelKeywords = ['anyOf', 'oneOf', 'allOf', 'enum', 'not'];
@@ -481,6 +489,79 @@ describe('Tool Definitions', () => {
 });
 
 describe('Tool Registration', () => {
+  it('refuses folder writes on the store bridge instead of silently creating a plain note', async () => {
+    const server = new MockMCPServer();
+    const sendRequest = vi.fn().mockResolvedValue({ knowledgeBaseId: 'kb' });
+    registerAllTools(server as never, { sendRequest } as never, createMockLogger());
+    const call = {
+      params: { name: 'remnote_create_note', arguments: { title: 'Learning', asFolder: true } },
+    };
+    const rejected = (await server.callHandler(CallToolRequestSchema, call)) as ToolSuccessResult;
+    expect(rejected.isError).toBe(true);
+    expect(sendRequest).not.toHaveBeenCalledWith('create_note', expect.anything());
+    sendRequest.mockImplementation(async (action: string) =>
+      action === 'get_status' ? { localFork: true } : sampleMutatingResult
+    );
+    expectStructuredToolResult(
+      (await server.callHandler(CallToolRequestSchema, call)) as ToolSuccessResult,
+      sampleMutatingResult
+    );
+  });
+
+  it('routes semantic commands to the shared service and validates their outputs', async () => {
+    const server = new MockMCPServer();
+    const status = {
+      status: 'idle',
+      model: 'embeddinggemma',
+      knowledgeBaseId: 'kb',
+      indexedNotes: 0,
+      processedNotes: 0,
+      dirty: false,
+    };
+    const result = {
+      query: 'felines',
+      mode: 'semantic',
+      results: [],
+      index: {
+        knowledgeBaseId: 'kb',
+        model: 'embeddinggemma',
+        indexedAt: '2026-10-07',
+        indexedNotes: 0,
+        dirty: false,
+      },
+      warning: 'snapshot',
+    };
+    const service = {
+      reindex: vi.fn().mockResolvedValue(status),
+      search: vi.fn().mockResolvedValue(result),
+      markDirty: vi.fn(),
+    };
+    registerAllTools(server as never, {} as never, createMockLogger(), [], service as never);
+    expectStructuredToolResult(
+      (await server.callHandler(CallToolRequestSchema, {
+        params: { name: 'remnote_reindex', arguments: {} },
+      })) as ToolSuccessResult,
+      status
+    );
+    expect(service.reindex).toHaveBeenCalledWith('status');
+    expectStructuredToolResult(
+      (await server.callHandler(CallToolRequestSchema, {
+        params: {
+          name: 'remnote_semantic_search',
+          arguments: { query: 'felines', mode: 'semantic' },
+        },
+      })) as ToolSuccessResult,
+      result
+    );
+    const validator = new AjvJsonSchemaValidator();
+    for (const [name, value] of [
+      ['remnote_reindex', status],
+      ['remnote_semantic_search', result],
+    ] as const) {
+      const tool = ALL_TOOLS.find((item) => item.name === name)!;
+      expect(validator.getValidator(tool.outputSchema)(value).valid).toBe(true);
+    }
+  });
   let mockServer: MockMCPServer;
   let mockWsServer: WebSocketServer;
 
@@ -499,14 +580,14 @@ describe('Tool Registration', () => {
     expect(mockServer.hasHandler(ListToolsRequestSchema)).toBe(true);
   });
 
-  it('should return all 17 tools in list', async () => {
+  it('should return all 19 tools in list', async () => {
     registerAllTools(mockServer as never, mockWsServer as never, createMockLogger());
 
     const result = (await mockServer.callHandler(ListToolsRequestSchema, {})) as {
       tools: unknown[];
     };
 
-    expect(result.tools).toHaveLength(17);
+    expect(result.tools).toHaveLength(19);
   });
 
   it('should include all tool names in list', async () => {
@@ -519,6 +600,8 @@ describe('Tool Registration', () => {
     const names = result.tools.map((t) => t.name);
     expect(names).toContain('remnote_create_note');
     expect(names).toContain('remnote_search');
+    expect(names).toContain('remnote_semantic_search');
+    expect(names).toContain('remnote_reindex');
     expect(names).toContain('remnote_search_by_tag');
     expect(names).toContain('remnote_read_note');
     expect(names).toContain('remnote_get_media');
@@ -1495,7 +1578,7 @@ describe('Tool Handlers - get_playbook', () => {
       params: { name: 'remnote_get_playbook', arguments: {} },
     })) as ToolSuccessResult;
 
-    expect(result.structuredContent?.playbookVersion).toBe('1.9.0');
+    expect(result.structuredContent?.playbookVersion).toBe('1.11.0');
     expect(Array.isArray(result.structuredContent?.decisionTree)).toBe(true);
     expect((result.structuredContent?.decisionTree as unknown[])?.length).toBeGreaterThan(0);
     expect(result.structuredContent?.decisionTree).toContain(

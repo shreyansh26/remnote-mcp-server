@@ -6,6 +6,7 @@ import {
   registerListChildrenCommand,
   registerSearchByTagCommand,
   registerSearchCommand,
+  registerSemanticCommands,
 } from './commands/search.js';
 import { registerReadCommand } from './commands/read.js';
 import { registerUpdateCommand } from './commands/update.js';
@@ -43,6 +44,7 @@ export function createProgram(version: string): Command {
 
   registerCreateCommand(program);
   registerSearchCommand(program);
+  registerSemanticCommands(program);
   registerSearchByTagCommand(program);
   registerListChildrenCommand(program);
   registerReadCommand(program);

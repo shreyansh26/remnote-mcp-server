@@ -27,6 +27,35 @@ async function runCommand(args: string[], result: unknown = { ok: true }): Promi
 }
 
 describe('command bridge action mapping', () => {
+  it('maps folders and semantic index commands to the matching MCP actions', async () => {
+    let spy = await runCommand(['create', 'Learning', '--as-folder']);
+    expect(spy).toHaveBeenCalledWith('create_note', { title: 'Learning', asFolder: true });
+    spy.mockRestore();
+    spy = await runCommand(['reindex', '--start']);
+    expect(spy).toHaveBeenCalledWith('reindex', { action: 'start' });
+    spy.mockRestore();
+    spy = await runCommand(['reindex']);
+    expect(spy).toHaveBeenCalledWith('reindex', { action: 'status' });
+    spy.mockRestore();
+    spy = await runCommand([
+      'semantic-search',
+      'felines',
+      '--mode',
+      'semantic',
+      '--parent-id',
+      'folder-id',
+      '--min-score',
+      '-1',
+    ]);
+    expect(spy).toHaveBeenCalledWith('semantic_search', {
+      query: 'felines',
+      limit: 10,
+      mode: 'semantic',
+      minScore: -1,
+      parentRemId: 'folder-id',
+    });
+    spy.mockRestore();
+  });
   afterEach(async () => {
     await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
   });

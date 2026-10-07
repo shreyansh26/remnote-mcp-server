@@ -3,7 +3,7 @@ export const FALLBACK_TOOLS = [
   {
     name: 'remnote_create_note',
     description:
-      'Create a new note in RemNote with optional content, parent, exact tag Rem IDs, and real aliases on an explicit title/root Rem. Supports hierarchical markdown, flashcard syntax (e.g. "- Term :: Definition"), and exact inline Rem references as [[id:<remId>]]. At least one of title or content must be provided. Recommended preflight once per session: remnote_status.',
+      'Create notes, nested Markdown bullets, flashcards, or a native folder (asFolder=true). Folders require a title and no content. Use the returned folder Rem ID as parentId to create documents or subfolders inside it; titled notes under folders are automatically documents. Supports exact references [[id:<remId>]], tags, and aliases. Recommended preflight: remnote_status.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -32,6 +32,11 @@ export const FALLBACK_TOOLS = [
           type: 'boolean',
           description:
             'Mark the created title/root Rem as a document while preserving any concept/card status',
+        },
+        asFolder: {
+          type: 'boolean',
+          description:
+            'Create a native folder. Requires a non-empty title, no content, and no asDocument. Supports parentId for subfolders.',
         },
         aliases: {
           type: 'array',
@@ -101,6 +106,61 @@ export const FALLBACK_TOOLS = [
         },
       },
       required: ['query'],
+    },
+  },
+  {
+    name: 'remnote_semantic_search',
+    description:
+      'Find notes by meaning with local Ollama embeddings, including notes with no matching keywords. Default hybrid mode combines semantic and keyword ranks; mode="semantic" uses only cosine similarity. Requires a ready remnote_reindex snapshot. Results include exact Rem IDs, cosine scores, parent context, and index freshness. Read returned IDs for current content. parentRemId scopes to descendants and excludes the parent.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        query: {
+          type: 'string',
+          minLength: 1,
+          maxLength: 8000,
+        },
+        limit: {
+          type: 'integer',
+          minimum: 1,
+          maximum: 100,
+          description: 'Default: 10',
+        },
+        mode: {
+          type: 'string',
+          enum: ['semantic', 'hybrid'],
+          description: 'Default: hybrid',
+        },
+        parentRemId: {
+          type: 'string',
+          minLength: 1,
+        },
+        minScore: {
+          type: 'number',
+          minimum: -1,
+          maximum: 1,
+          description: 'Minimum cosine similarity (default: 0)',
+        },
+      },
+      required: ['query'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'remnote_reindex',
+    description:
+      'Manage the local Ollama semantic index. The server refreshes on startup/bridge connection and every 15 minutes after each refresh by default; REMNOTE_SEMANTIC_REFRESH_MINUTES changes the interval (0 disables automatic refresh). action="start" requests an immediate background full-KB refresh and returns immediately; poll action="status" until ready. Reuses unchanged embeddings, removes deleted notes, and preserves the previous snapshot on failure. Requires the local bridge fork.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        action: {
+          type: 'string',
+          enum: ['start', 'status'],
+          description: 'Default: status',
+        },
+      },
+      required: [],
+      additionalProperties: false,
     },
   },
   {
@@ -329,7 +389,7 @@ export const FALLBACK_TOOLS = [
         },
         expectedOldRemType: {
           type: 'string',
-          enum: ['document', 'dailyDocument', 'concept', 'descriptor', 'portal', 'text'],
+          enum: ['folder', 'document', 'dailyDocument', 'concept', 'descriptor', 'portal', 'text'],
           description:
             'Optional stale-context guard; reject if current remType differs from this value',
         },

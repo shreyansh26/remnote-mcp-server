@@ -24,10 +24,12 @@ When changing action names, payloads, or response semantics, validate this repo 
 
 ## Contract Map (Current)
 
-### External MCP Tool Surface (17)
+### External MCP Tool Surface (19)
 
 - `remnote_create_note`
 - `remnote_search`
+- `remnote_semantic_search`
+- `remnote_reindex`
 - `remnote_search_by_tag`
 - `remnote_read_note`
 - `remnote_get_media`
@@ -48,6 +50,8 @@ When changing action names, payloads, or response semantics, validate this repo 
 
 - `remnote-cli create`
 - `remnote-cli search`
+- `remnote-cli semantic-search`
+- `remnote-cli reindex`
 - `remnote-cli search-by-tag`
 - `remnote-cli read`
 - `remnote-cli get-media`
@@ -81,6 +85,8 @@ Projects are still `0.x`; prefer the same minor line across bridge and server pa
 - `src/websocket-server.ts` - plugin connection, request correlation, timeouts, `hello` handling
 - `src/tools/index.ts` - MCP tool registration and dispatch
 - `src/schemas/remnote-schemas.ts` - Zod input/output schema contracts
+- `src/semantic-search.ts` - shared Ollama lifecycle, startup/periodic refresh, private KB/model snapshots, semantic/hybrid retrieval
+- `scripts/start-local-forks.sh` - paired launcher for sibling bridge/server checkouts; private runtime data stays outside both repos
 - `src/remnote-cli/` - bundled CLI command parser, MCP client, command payload mapping, and output formatting
 - `mcpb/remnote-local/server/index.js` - stdio MCP proxy used by `remnote-mcp-stdio` and the Claude Desktop MCPB
 - `mcpb/remnote-local/server/fallback-tools.generated.js` - generated fallback tool metadata for MCPB startup when the
@@ -95,6 +101,7 @@ Primary docs for deeper context:
 - `docs/guides/tools-reference.md`
 - `docs/guides/configuration.md`
 - `docs/guides/remote-access.md`
+- `docs/guides/local-fork-features.md` - native folders and local semantic extensions; full-KB export is internal to reindex
 
 ## Development and Verification
 

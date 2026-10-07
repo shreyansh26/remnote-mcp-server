@@ -55,12 +55,12 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/robert7/remnote-mcp-server.git"
+    "url": "git+https://github.com/shreyansh26/remnote-mcp-server.git"
   },
   "bugs": {
-    "url": "https://github.com/robert7/remnote-mcp-server/issues"
+    "url": "https://github.com/shreyansh26/remnote-mcp-server/issues"
   },
-  "homepage": "https://github.com/robert7/remnote-mcp-server#readme",
+  "homepage": "https://github.com/shreyansh26/remnote-mcp-server#readme",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
     "commander": "^15.0.0",

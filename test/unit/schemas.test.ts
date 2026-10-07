@@ -20,6 +20,20 @@ import {
 } from '../../src/schemas/remnote-schemas.js';
 
 describe('CreateNoteSchema', () => {
+  it('accepts native folders and rejects ambiguous folder roots', () => {
+    expect(CreateNoteSchema.parse({ title: 'Learning', asFolder: true })).toEqual({
+      title: 'Learning',
+      asFolder: true,
+    });
+    for (const params of [
+      { asFolder: true },
+      { title: ' ', asFolder: true },
+      { title: 'X', asFolder: true, content: '' },
+      { title: 'X', asFolder: true, asDocument: true },
+    ]) {
+      expect(() => CreateNoteSchema.parse(params)).toThrow('asFolder requires');
+    }
+  });
   it('should validate with only title field', () => {
     const result = CreateNoteSchema.parse({ title: 'Test' });
     expect(result.title).toBe('Test');
@@ -375,7 +389,7 @@ describe('SetDocumentStatusSchema', () => {
       SetDocumentStatusSchema.parse({
         remId: 'rem-456',
         isDocument: true,
-        expectedOldRemType: 'folder',
+        expectedOldRemType: 'unknown',
       })
     ).toThrow();
   });

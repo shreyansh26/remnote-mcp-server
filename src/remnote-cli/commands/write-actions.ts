@@ -7,6 +7,7 @@ import { validateNotFlag } from './arg-utils.js';
 
 type InsertPosition = 'first' | 'last' | 'before' | 'after';
 const REM_CLASSIFICATIONS = [
+  'folder',
   'document',
   'dailyDocument',
   'concept',

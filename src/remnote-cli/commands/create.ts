@@ -21,6 +21,7 @@ export function registerCreateCommand(program: Command): void {
     .option('--parent-id <id>', 'Parent Rem ID', validate)
     .option('--tag-ids <tagRemIds...>', 'Exact tag Rem IDs to add')
     .option('--as-document', 'Mark the created title/root Rem as a document')
+    .option('--as-folder', 'Create a native folder (title required; no content or --as-document)')
     .option('--aliases <aliases...>', 'Real aliases to add to the explicit title/root Rem')
     .action(async (titleArg: string | undefined, opts) => {
       const globalOpts = program.opts();
@@ -46,6 +47,7 @@ export function registerCreateCommand(program: Command): void {
         if (opts.parentId) payload.parentId = opts.parentId;
         if (opts.tagIds && opts.tagIds.length > 0) payload.tagRemIds = opts.tagIds;
         if (opts.asDocument) payload.asDocument = true;
+        if (opts.asFolder) payload.asFolder = true;
         if (opts.aliases && opts.aliases.length > 0) payload.aliases = opts.aliases;
 
         const result = await client.execute('create_note', payload);

@@ -9,6 +9,8 @@ const packageJson = require('../../../package.json') as { version: string };
 export const BRIDGE_ACTION_TO_TOOL: Readonly<Record<string, string>> = {
   create_note: 'remnote_create_note',
   search: 'remnote_search',
+  semantic_search: 'remnote_semantic_search',
+  reindex: 'remnote_reindex',
   search_by_tag: 'remnote_search_by_tag',
   read_note: 'remnote_read_note',
   get_media: 'remnote_get_media',

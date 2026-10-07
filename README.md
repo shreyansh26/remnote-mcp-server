@@ -1,5 +1,50 @@
 # RemNote MCP Server
 
+Personal fork of [Robert Spiegel's server](https://github.com/robert7/remnote-mcp-server), paired with
+[shreyansh26/remnote-mcp-bridge](https://github.com/shreyansh26/remnote-mcp-bridge). Adds native folders/documents and
+local Ollama semantic/hybrid search to the existing note, bullet, flashcard, tag, and alias tools.
+
+## Local fork setup
+
+Clone the two repos as siblings and build each one:
+
+```bash
+mkdir -p ~/Projects/Remnote-MCP
+cd ~/Projects/Remnote-MCP
+git clone https://github.com/shreyansh26/remnote-mcp-server.git
+git clone https://github.com/shreyansh26/remnote-mcp-bridge.git
+npm --prefix remnote-mcp-server ci
+npm --prefix remnote-mcp-server run build
+npm --prefix remnote-mcp-bridge ci
+npm --prefix remnote-mcp-bridge run build
+ollama pull embeddinggemma
+bash remnote-mcp-server/scripts/start-local-forks.sh
+```
+
+Requires Node.js 22.13+ and Ollama. The launcher starts the MCP server at `http://127.0.0.1:3001/mcp` and serves the
+local bridge at `http://localhost:8080/`. Stop it with Ctrl+C; it stops only its own child processes.
+
+In RemNote, disable the store bridge, then load **RemNote Local Bridge** through **Settings → Plugins → Build → Develop
+from localhost**, using `http://localhost:8080/`. Allow the declared read-only KB identity and all-note scopes, then
+enable write operations in the bridge settings. Connect Codex to `http://127.0.0.1:3001/mcp`.
+
+The index refreshes on startup once the bridge connects, on bridge reconnection, and 15 minutes after each completed
+refresh. It picks up manual edits and deletions and reuses embeddings for unchanged text. Set
+`REMNOTE_SEMANTIC_REFRESH_MINUTES=5` before launching to change the interval, or `0` to disable automatic refresh.
+`remnote_reindex` with `action="start"` still requests an immediate refresh. Runtime snapshots are private and stored
+in `.runtime/semantic` alongside the repos; they are outside both Git repositories.
+
+The compiled MCP entrypoint is `dist/index.js`; the CLI is `dist/remnote-cli/index.js`. For a separate MCP process:
+
+```bash
+REMNOTE_SEMANTIC_DIR="$PWD/.runtime/semantic" node remnote-mcp-server/dist/index.js --http-host 127.0.0.1 --http-port 3001 --ws-port 3002
+```
+
+Keep the bridge asset server running too. Server-only changes do not require a plugin reload. Rebuild and reload the
+local plugin after changing bridge code. See [folder and semantic tool details](docs/guides/local-fork-features.md).
+
+## Upstream documentation
+
 ![License](https://img.shields.io/badge/license-MIT-blue)
 ![CI](https://github.com/robert7/remnote-mcp-server/actions/workflows/ci.yml/badge.svg)
 [![npm version](https://img.shields.io/npm/v/remnote-mcp-server)](https://www.npmjs.com/package/remnote-mcp-server)

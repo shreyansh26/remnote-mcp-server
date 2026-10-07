@@ -31,6 +31,8 @@ This smoke test requires:
 Optional/report-only tools:
 
 - `remnote_replace_children`
+- Local fork: `remnote_reindex` and `remnote_semantic_search`. Check status first; startup/bridge connection and periodic refresh run automatically by default. Poll until ready before querying by meaning. Request an immediate refresh only if needed; `REMNOTE_SEMANTIC_REFRESH_MINUTES=0` disables automatic refresh.
+- Local fork: when folder creation is explicitly authorized, create with `asFolder=true`, then create a titled document under its returned root ID and verify nested bullets through structured reads. The store bridge must be disabled.
 
 If your client can inspect the available tool list, check it first. If not, continue and report any missing tool when a
 required call fails.

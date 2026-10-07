@@ -17,6 +17,8 @@ JSON in a top-level `content` text block for compatibility with older clients an
 |------|-------------|----------|
 | `remnote_create_note` | Create new notes or flashcards | Adding new knowledge, ideas, references, or flashcards. Supports hierarchical markdown, real aliases, exact tag Rem IDs, and optional root document status. |
 | `remnote_search` | Search knowledge base | Finding existing notes, exploring topics |
+| `remnote_semantic_search` | Local semantic/hybrid search | Meaning-based retrieval, optional parent scope, cosine scores |
+| `remnote_reindex` | Refresh/check the semantic index | Automatic startup/periodic refresh; optional immediate refresh and status |
 | `remnote_search_by_tag` | Search by exact tag Rem ID | Finding ancestor context for tagged notes |
 | `remnote_read_note` | Read note content | Retrieving details, reading hierarchies |
 | `remnote_get_media` | Retrieve managed image content | Fetching an embedded RemNote image by stable metadata ID |
@@ -44,6 +46,7 @@ Create a new note/flashcard in RemNote with optional parent hierarchy, exact tag
 | `title` | string | No | The title of the note (optional if content is provided); supports `[[id:<remId>]]` |
 | `content` | string | No | Child content as bullet points or hierarchical markdown; supports `[[id:<remId>]]` |
 | `parentId` | string | No | Parent Rem ID to nest this note under |
+| `asFolder` | boolean | No | Native folder; requires title, no content, and no asDocument. Titled child notes under folders become documents. |
 | `tagRemIds` | string[] | No | Exact tag Rem IDs to apply |
 | `asDocument` | boolean | No | Mark the created title/root Rem as a document while preserving flashcard/concept status |
 | `aliases` | string[] | No | Alternate names on the explicit title/root Rem; requires `title` |

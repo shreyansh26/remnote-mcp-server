@@ -9,6 +9,19 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Local fork: automatic semantic refresh on server startup/bridge connection, then 15 minutes after each refresh by
+  default. `REMNOTE_SEMANTIC_REFRESH_MINUTES` configures the interval; `0` disables automatic refresh. Jobs share
+  the manual reindex path, do not overlap, preserve snapshots on failure, and stop scheduling on shutdown.
+- Local fork: GitHub fork setup documentation and a paired local launcher for sibling Projects checkouts.
+- Local fork: compact Float32 vectors in an atomic streamed JSONL snapshot, avoiding giant JSON strings for large KBs.
+- Local fork: native folders through `asFolder` / `create --as-folder`, automatic document roots under folders,
+  and a guard against accidentally sending folder requests to the store bridge.
+- Local fork: `remnote_reindex` and `remnote_semantic_search`, with CLI parity, local Ollama lifecycle, full-KB paged
+  export, chunked semantic/hybrid retrieval, subtree scope, KB/model isolation, embedding reuse, and atomic refresh.
+  Indexing runs in the background; automatic refresh also picks up direct RemNote edits.
+- Local fork: setup guide, updated playbook/CLI skill and generated MCPB metadata, plus unit and optional live folder
+  contract checks. No new runtime dependencies or global executable links.
+
 - Add real RemNote alias writes through `remnote_create_note`, `remnote_update_note`, `remnote-cli create`, and
   `remnote-cli update`, with normalization, idempotency, exact removal, Unicode preservation, and MCP/MCPB/CLI parity.
 

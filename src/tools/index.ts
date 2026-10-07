@@ -19,6 +19,7 @@ import { ReadTableSchema } from '../schemas/remnote-schemas.js';
 import { checkVersionCompatibility } from '../version-compat.js';
 import type { Logger } from '../logger.js';
 import { parseMediaLocator, resolveManagedImage } from '../media.js';
+import { SemanticSearch, SemanticSearchSchema, ReindexSchema } from '../semantic-search.js';
 
 const NAVIGATION_PRESET = {
   contentMode: 'structured',
@@ -108,7 +109,7 @@ const MATCHED_REM_SCHEMA = {
 export const CREATE_NOTE_TOOL = {
   name: 'remnote_create_note',
   description:
-    'Create a new note in RemNote with optional content, parent, exact tag Rem IDs, and real aliases on an explicit title/root Rem. Supports hierarchical markdown, flashcard syntax (e.g. "- Term :: Definition"), and exact inline Rem references as [[id:<remId>]]. At least one of title or content must be provided. Recommended preflight once per session: remnote_status.',
+    'Create notes, nested Markdown bullets, flashcards, or a native folder (asFolder=true). Folders require a title and no content. Use the returned folder Rem ID as parentId to create documents or subfolders inside it; titled notes under folders are automatically documents. Supports exact references [[id:<remId>]], tags, and aliases. Recommended preflight: remnote_status.',
   inputSchema: {
     type: 'object' as const,
     properties: {
@@ -132,6 +133,11 @@ export const CREATE_NOTE_TOOL = {
         type: 'boolean',
         description:
           'Mark the created title/root Rem as a document while preserving any concept/card status',
+      },
+      asFolder: {
+        type: 'boolean',
+        description:
+          'Create a native folder. Requires a non-empty title, no content, and no asDocument. Supports parentId for subfolders.',
       },
       aliases: {
         type: 'array',
@@ -875,7 +881,7 @@ export const SET_DOCUMENT_STATUS_TOOL = {
       },
       expectedOldRemType: {
         type: 'string',
-        enum: ['document', 'dailyDocument', 'concept', 'descriptor', 'portal', 'text'],
+        enum: ['folder', 'document', 'dailyDocument', 'concept', 'descriptor', 'portal', 'text'],
         description:
           'Optional stale-context guard; reject if current remType differs from this value',
       },
@@ -1165,6 +1171,14 @@ export const STATUS_TOOL = {
       connected: { type: 'boolean', description: 'Whether bridge plugin is currently connected' },
       serverVersion: { type: 'string', description: 'MCP server version' },
       pluginVersion: { type: 'string', description: 'Connected bridge plugin version' },
+      knowledgeBaseId: {
+        type: 'string',
+        description: 'Current knowledge base identity, required for isolated semantic indexes',
+      },
+      localFork: {
+        type: 'boolean',
+        description: 'Whether the paired local bridge fork is connected',
+      },
       version_warning: {
         type: 'string',
         description: 'Compatibility warning when server/bridge versions differ',
@@ -1327,9 +1341,105 @@ export const PLAYBOOK_TOOL = {
   },
 };
 
+export const REINDEX_TOOL = {
+  name: 'remnote_reindex',
+  description:
+    'Manage the local Ollama semantic index. The server refreshes on startup/bridge connection and every 15 minutes after each refresh by default; REMNOTE_SEMANTIC_REFRESH_MINUTES changes the interval (0 disables automatic refresh). action="start" requests an immediate background full-KB refresh and returns immediately; poll action="status" until ready. Reuses unchanged embeddings, removes deleted notes, and preserves the previous snapshot on failure. Requires the local bridge fork.',
+  inputSchema: {
+    type: 'object' as const,
+    properties: {
+      action: { type: 'string', enum: ['start', 'status'], description: 'Default: status' },
+    },
+    required: [],
+    additionalProperties: false,
+  },
+  outputSchema: {
+    type: 'object' as const,
+    properties: {
+      status: { type: 'string', enum: ['idle', 'indexing', 'ready', 'failed'] },
+      model: { type: 'string' },
+      knowledgeBaseId: { type: 'string' },
+      indexedNotes: { type: 'integer' },
+      processedNotes: { type: 'integer' },
+      totalRems: { type: 'integer' },
+      indexedAt: { type: 'string' },
+      dirty: { type: 'boolean' },
+      error: { type: 'string' },
+    },
+    required: ['status', 'model', 'knowledgeBaseId', 'indexedNotes', 'processedNotes', 'dirty'],
+    additionalProperties: false,
+  },
+};
+
+export const SEMANTIC_SEARCH_TOOL = {
+  name: 'remnote_semantic_search',
+  description:
+    'Find notes by meaning with local Ollama embeddings, including notes with no matching keywords. Default hybrid mode combines semantic and keyword ranks; mode="semantic" uses only cosine similarity. Requires a ready remnote_reindex snapshot. Results include exact Rem IDs, cosine scores, parent context, and index freshness. Read returned IDs for current content. parentRemId scopes to descendants and excludes the parent.',
+  inputSchema: {
+    type: 'object' as const,
+    properties: {
+      query: { type: 'string', minLength: 1, maxLength: 8000 },
+      limit: { type: 'integer', minimum: 1, maximum: 100, description: 'Default: 10' },
+      mode: { type: 'string', enum: ['semantic', 'hybrid'], description: 'Default: hybrid' },
+      parentRemId: { type: 'string', minLength: 1 },
+      minScore: {
+        type: 'number',
+        minimum: -1,
+        maximum: 1,
+        description: 'Minimum cosine similarity (default: 0)',
+      },
+    },
+    required: ['query'],
+    additionalProperties: false,
+  },
+  outputSchema: {
+    type: 'object' as const,
+    properties: {
+      query: { type: 'string' },
+      mode: { type: 'string', enum: ['semantic', 'hybrid'] },
+      warning: { type: 'string' },
+      results: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            remId: { type: 'string' },
+            title: { type: 'string' },
+            headline: { type: 'string' },
+            remType: { type: 'string' },
+            parentRemId: { type: 'string' },
+            parentTitle: { type: 'string' },
+            aliases: { type: 'array', items: { type: 'string' } },
+            score: { type: 'number' },
+            rankScore: { type: 'number' },
+          },
+          required: ['remId', 'title', 'headline', 'remType', 'score'],
+          additionalProperties: false,
+        },
+      },
+      index: {
+        type: 'object',
+        properties: {
+          knowledgeBaseId: { type: 'string' },
+          model: { type: 'string' },
+          indexedAt: { type: 'string' },
+          indexedNotes: { type: 'integer' },
+          dirty: { type: 'boolean' },
+        },
+        required: ['knowledgeBaseId', 'model', 'indexedAt', 'indexedNotes', 'dirty'],
+        additionalProperties: false,
+      },
+    },
+    required: ['query', 'mode', 'results', 'index', 'warning'],
+    additionalProperties: false,
+  },
+};
+
 export const ALL_TOOLS = [
   CREATE_NOTE_TOOL,
   SEARCH_TOOL,
+  SEMANTIC_SEARCH_TOOL,
+  REINDEX_TOOL,
   SEARCH_BY_TAG_TOOL,
   READ_NOTE_TOOL,
   GET_MEDIA_TOOL,
@@ -1351,7 +1461,10 @@ export function registerAllTools(
   server: Server,
   wsServer: WebSocketServer,
   logger: Logger,
-  mediaRoots: string[] = []
+  mediaRoots: string[] = [],
+  semanticSearch = new SemanticSearch((action, payload, timeoutMs) =>
+    wsServer.sendRequest(action, payload, timeoutMs)
+  )
 ) {
   const toolLogger = logger.child({ context: 'tools' });
 
@@ -1403,8 +1516,27 @@ export function registerAllTools(
         | undefined;
 
       switch (toolName) {
+        case 'remnote_semantic_search': {
+          result = await semanticSearch.search(
+            SemanticSearchSchema.parse(request.params.arguments)
+          );
+          break;
+        }
+        case 'remnote_reindex': {
+          const args = ReindexSchema.parse(request.params.arguments ?? {});
+          result = await semanticSearch.reindex(args.action);
+          break;
+        }
         case 'remnote_create_note': {
           const args = CreateNoteSchema.parse(request.params.arguments);
+          if (args.asFolder) {
+            const status = await wsServer.sendRequest('get_status', {});
+            if ((status as { localFork?: boolean })?.localFork !== true) {
+              throw new Error(
+                'Folder creation requires RemNote Local Bridge; disable the store bridge and load the local fork'
+              );
+            }
+          }
           result = await wsServer.sendRequest('create_note', args);
           break;
         }
@@ -1530,7 +1662,7 @@ export function registerAllTools(
           }
 
           result = {
-            playbookVersion: '1.9.0',
+            playbookVersion: '1.11.0',
             summary:
               'Use this playbook to check RemNote connection and write gates, navigate by remId with paged search/read/list workflows, retrieve managed images, choose compact/full output views, and apply safe metadata writes including real aliases, exact inline [[id:<remId>]] references, tag property values, and dry-run-first document status changes.',
             recommendedStatusCheck: {
@@ -1541,6 +1673,8 @@ export function registerAllTools(
             },
             decisionTree: [
               'Need connection and write-policy context? Call remnote_status first.',
+              'Need notes with related meaning but different words? Check remnote_reindex with action="status" first, then use remnote_semantic_search when ready. The server refreshes on startup/bridge connection and every 15 minutes after each refresh by default, including direct RemNote edits. For an immediate refresh or when automatic refresh is disabled, start action="start" and poll status until ready. Read returned IDs for current content.',
+              'Need a folder? Use remnote_create_note with title and asFolder=true, then use its returned root Rem ID as parentId for documents or subfolders. Folders have no bullet content; child documents accept nested Markdown bullets.',
               'Need an embedded RemNote-managed image? Call remnote_read_note with includeMediaMetadata=true, then call remnote_get_media with the returned remId, field, and mediaId.',
               'Need to orient across the KB? Use remnote_search with contentMode="structured", view="compact", depth=1, childLimit=500.',
               'Need broad search enumeration? Continue remnote_search or remnote_search_by_tag with nextCursor while hasMore is true.',
@@ -1615,6 +1749,22 @@ export function registerAllTools(
         default:
           throw new Error(`Unknown tool: ${toolName}`);
       }
+
+      if (
+        [
+          'remnote_create_note',
+          'remnote_update_note',
+          'remnote_set_document_status',
+          'remnote_move_note',
+          'remnote_insert_children',
+          'remnote_replace_children',
+          'remnote_update_tags',
+          'remnote_set_property',
+          'remnote_append_journal',
+        ].includes(toolName) &&
+        (result as { dryRun?: boolean })?.dryRun !== true
+      )
+        semanticSearch.markDirty();
 
       toolLogger.debug(
         {

@@ -3,6 +3,7 @@ import { z } from 'zod';
 const ContentModeSchema = z.enum(['none', 'markdown', 'structured']);
 const ViewSchema = z.enum(['compact', 'standard', 'full']);
 const RemClassificationSchema = z.enum([
+  'folder',
   'document',
   'dailyDocument',
   'concept',
@@ -71,10 +72,24 @@ export const CreateNoteSchema = z
       .boolean()
       .optional()
       .describe('Mark the created title/root Rem as a document without changing card status'),
+    asFolder: z
+      .boolean()
+      .optional()
+      .describe('Create a native folder; requires title, no content, and no asDocument'),
     aliases: AliasArraySchema.describe('Alternate names to create on the explicit title/root Rem'),
   })
   .strict()
   .superRefine((value, ctx) => {
+    if (
+      value.asFolder &&
+      (!value.title?.trim() || value.content !== undefined || value.asDocument)
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'asFolder requires a non-empty title, no content, and no asDocument',
+        path: ['asFolder'],
+      });
+    }
     if (value.title === undefined && value.content === undefined) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,

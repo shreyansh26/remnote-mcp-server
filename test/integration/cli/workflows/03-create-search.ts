@@ -994,5 +994,53 @@ export async function createSearchWorkflow(
     }
   }
 
+  {
+    const start = Date.now();
+    try {
+      const folder = (await ctx.client.runExpectSuccess([
+        'create',
+        `CLI folder ${ctx.runId}`,
+        '--as-folder',
+        ...(state.integrationParentRemId ? ['--parent-id', state.integrationParentRemId] : []),
+      ])) as { remIds: string[] };
+      const folderId = folder.remIds[0];
+      const document = (await withTempContentFile(
+        '- Parent bullet\n  - Nested bullet',
+        async (path) =>
+          ctx.client.runExpectSuccess([
+            'create',
+            `CLI document ${ctx.runId}`,
+            '--parent-id',
+            folderId,
+            '--content-file',
+            path,
+          ])
+      )) as { remIds: string[] };
+      const read = (await ctx.client.runExpectSuccess([
+        'read',
+        document.remIds[0],
+        '--content-mode',
+        'structured',
+      ])) as Record<string, unknown>;
+      assertEqual(read.remType, 'document', 'notes inside folders are documents');
+      assertEqual(read.parentRemId, folderId, 'document parent is the native folder');
+      assertTruthy(
+        JSON.stringify(read.contentStructured).includes('Nested bullet'),
+        'nested bullet survives creation'
+      );
+      steps.push({
+        label: 'Create native folder and nested document bullets',
+        passed: true,
+        durationMs: Date.now() - start,
+      });
+    } catch (error) {
+      steps.push({
+        label: 'Create native folder and nested document bullets',
+        passed: false,
+        durationMs: Date.now() - start,
+        error: (error as Error).message,
+      });
+    }
+  }
   return { name: 'Create & Search', steps, skipped: false };
 }

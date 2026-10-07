@@ -20,6 +20,13 @@ Bridge actions (`create`, `search`, `search-by-tag`, `read`, `get-media`, `list-
 
 ## Global Options
 
+The local fork also supports `create --as-folder`, `reindex [--start]`, and
+`semantic-search <query> [--mode semantic|hybrid] [--limit n] [--parent-id id] [--min-score n]`.
+See [Local folder and semantic-search extensions](local-fork-features.md) for configuration and freshness semantics.
+The server refreshes the local index on startup/bridge connection and 15 minutes after each refresh by default.
+Use `reindex` to inspect status or `reindex --start` to request an immediate refresh.
+`REMNOTE_SEMANTIC_REFRESH_MINUTES` configures the interval; `0` disables automatic refresh.
+
 | Flag              | Default                         | Description                         |
 | ----------------- | ------------------------------- | ----------------------------------- |
 | `--json`          | enabled                         | JSON output mode                    |
